@@ -12,6 +12,21 @@ See [this](csharp/README.md) for details about the port.
 
 Phone number metadata is updated in the Google repo approximately every two weeks. This library is automatically updated by a [scheduled github action](https://github.com/twcclegg/libphonenumber-csharp/actions/workflows/create_new_release_on_new_metadata_update.yml) to include the latest metadata, usually within a day.
 
+## Table of Contents
+- [Installation](#installation)
+- [Examples](#examples)
+    - [Parsing a phone number](#parsing-a-phone-number)
+    - [Formatting a phone number](#formatting-a-phone-number)
+    - [Check if a phone number is valid](#check-if-a-phone-number-is-valid)
+    - [Get the type of a phone number](#get-the-type-of-a-phone-number)
+    - [Get the region code for a phone number](#get-the-region-code-for-a-phone-number)
+- [Features](#features)
+- [ToDo](#todo)
+- [Running tests locally](#running-tests-locally)
+- [Contributing](#contributing)
+- [License](#license)
+- [Donations](#donations)
+
 ## Installation
 
 Run the following command to add this library to your project
@@ -129,6 +144,9 @@ Compress-Archive -Path "resources\test\geocoding\*" -DestinationPath "resources\
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## License
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
 
 ## Donations
 
