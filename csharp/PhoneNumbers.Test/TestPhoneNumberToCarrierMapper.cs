@@ -157,9 +157,13 @@ namespace PhoneNumbers.Test
         private static readonly PhoneNumber AO_INVALID_TEST =
             new PhoneNumber.Builder().SetCountryCode(244).SetNationalNumber(101234L).Build();
 
-        // en/1.txt: 1650212 -> "US carrier", 1650213 -> "US carrier2"
+        // en/1650.txt: 1650212 -> "US carrier", 1650213 -> "US carrier2"
+        // NANPA data is split by area code prefix (e.g. 1650), so we need a file per prefix.
         private static readonly PhoneNumber US_FIXED_OR_MOBILE_TEST =
             new PhoneNumber.Builder().SetCountryCode(1).SetNationalNumber(6502123456L).Build();
+        // Area code 212 (New York) — no split file exists in the test data, so lookup returns "".
+        private static readonly PhoneNumber s_usNanpaNoDataTest =
+            new PhoneNumber.Builder().SetCountryCode(1).SetNationalNumber(2128120000L).Build();
 
         [Fact]
         public void TestGetNameForMobilePortableRegion()
@@ -324,6 +328,31 @@ namespace PhoneNumbers.Test
             // Swedish test data (sv/44.txt) has an entry for prefix 4473.
             Assert.Equal("Brittisk operatör",
                 testCarrierMapper.GetNameForNumber(UK_MOBILE1_TEST, new Locale("sv", "SE")));
+        }
+
+        // ── NANPA data-split tests ──────────────────────────────────────────────────────────────
+        // As the NANPA carrier data is split into per-area-code files (e.g. en/1650.txt),
+        // GetDescriptionForNumber must use phonePrefix = 1000 + (nationalNumber / 10_000_000)
+        // for country code 1 instead of the country code itself.
+
+        [Fact]
+        public void TestGetNameForNanpaNumberWithSplitData()
+        {
+            // 6502123456 → prefix 1650 → en/1650.txt → "US carrier"
+            Assert.Equal("US carrier",
+                testCarrierMapper.GetNameForNumber(US_FIXED_OR_MOBILE_TEST, Locale.English));
+            // 6502133456 → prefix 1650 → en/1650.txt → "US carrier2"
+            Assert.Equal("US carrier2",
+                testCarrierMapper.GetNameForValidNumber(
+                    new PhoneNumber.Builder().SetCountryCode(1).SetNationalNumber(6502133456L).Build(),
+                    Locale.English));
+        }
+
+        [Fact]
+        public void TestGetNameForNanpaNumberWithNoSplitFile()
+        {
+            // Area code 212 has no en/1212.txt split file — returns "".
+            Assert.Equal("", testCarrierMapper.GetNameForValidNumber(s_usNanpaNoDataTest, Locale.English));
         }
     }
 }
