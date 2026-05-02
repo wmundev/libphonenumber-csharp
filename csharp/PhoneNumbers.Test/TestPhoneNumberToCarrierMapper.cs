@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+using System.Reflection;
 using Xunit;
 
 namespace PhoneNumbers.Test
@@ -22,6 +23,12 @@ namespace PhoneNumbers.Test
     public class TestPhoneNumberToCarrierMapper
     {
         private readonly PhoneNumberToCarrierMapper carrierMapper = PhoneNumberToCarrierMapper.GetInstance();
+
+        // Test-data mapper backed by resources/test/carrier/ — mirrors the Java test setup.
+        private static readonly PhoneNumberToCarrierMapper testCarrierMapper =
+            new PhoneNumberToCarrierMapper("carrier.", Assembly.GetExecutingAssembly());
+
+        // ── Production-data numbers (used with carrierMapper / GetInstance()) ─────────────────
 
         // UK mobile: 447106 -> O2, 447306 -> Virgin Mobile (en/44.txt)
         private static readonly PhoneNumber UK_MOBILE1 =
@@ -57,6 +64,39 @@ namespace PhoneNumbers.Test
             new PhoneNumber.Builder().SetCountryCode(999).SetNationalNumber(2423651234L).Build();
         private static readonly PhoneNumber INTERNATIONAL_TOLL_FREE =
             new PhoneNumber.Builder().SetCountryCode(800).SetNationalNumber(12345678L).Build();
+
+        // ── Test-data numbers (used with testCarrierMapper, match prefixes in resources/test/carrier/) ─
+
+        // en/44.txt: 4411 -> "British fixed line carrier", 4473 -> "British carrier", 44760 -> "British pager"
+        // sv/44.txt: 4473 -> "Brittisk operatör"
+        private static readonly PhoneNumber UK_MOBILE1_TEST =
+            new PhoneNumber.Builder().SetCountryCode(44).SetNationalNumber(7387654321L).Build();
+        private static readonly PhoneNumber UK_MOBILE2_TEST =
+            new PhoneNumber.Builder().SetCountryCode(44).SetNationalNumber(7487654321L).Build();
+        private static readonly PhoneNumber UK_FIXED1_TEST =
+            new PhoneNumber.Builder().SetCountryCode(44).SetNationalNumber(1123456789L).Build();
+        private static readonly PhoneNumber UK_FIXED2_TEST =
+            new PhoneNumber.Builder().SetCountryCode(44).SetNationalNumber(2987654321L).Build();
+        private static readonly PhoneNumber UK_PAGER =
+            new PhoneNumber.Builder().SetCountryCode(44).SetNationalNumber(7601234567L).Build();
+        private static readonly PhoneNumber UK_INVALID_TEST =
+            new PhoneNumber.Builder().SetCountryCode(44).SetNationalNumber(7301234L).Build();
+
+        // en/244.txt: 244917 -> "Angolan carrier", 244262 -> "Angolan fixed line carrier"
+        private static readonly PhoneNumber AO_MOBILE1_TEST =
+            new PhoneNumber.Builder().SetCountryCode(244).SetNationalNumber(917654321L).Build();
+        private static readonly PhoneNumber AO_MOBILE2_TEST =
+            new PhoneNumber.Builder().SetCountryCode(244).SetNationalNumber(927654321L).Build();
+        private static readonly PhoneNumber AO_FIXED1_TEST =
+            new PhoneNumber.Builder().SetCountryCode(244).SetNationalNumber(22254321L).Build();
+        private static readonly PhoneNumber AO_FIXED2_TEST =
+            new PhoneNumber.Builder().SetCountryCode(244).SetNationalNumber(26254321L).Build();
+        private static readonly PhoneNumber AO_INVALID_TEST =
+            new PhoneNumber.Builder().SetCountryCode(244).SetNationalNumber(101234L).Build();
+
+        // en/1.txt: 1650212 -> "US carrier", 1650213 -> "US carrier2"
+        private static readonly PhoneNumber US_FIXED_OR_MOBILE_TEST =
+            new PhoneNumber.Builder().SetCountryCode(1).SetNationalNumber(6502123456L).Build();
 
         [Fact]
         public void TestGetNameForMobilePortableRegion()
@@ -150,6 +190,77 @@ namespace PhoneNumbers.Test
             Assert.Equal("O2", carrierMapper.GetNameForValidNumber(UK_MOBILE1, Locale.French));
             // Korean never falls back to English (zh, ja, ko are excluded).
             Assert.Equal("", carrierMapper.GetNameForValidNumber(UK_MOBILE1, Locale.Korean));
+        }
+
+        // ── Tests using synthetic test carrier data ─────────────────────────────────────────────
+
+        [Fact]
+        public void TestGetNameForMobilePortableRegion_WithTestData()
+        {
+            // UK has MNP: GetNameForNumber still resolves the original carrier.
+            Assert.Equal("British carrier", testCarrierMapper.GetNameForNumber(UK_MOBILE1_TEST, Locale.English));
+            // French has no test data for UK — falls back to English.
+            Assert.Equal("British carrier", testCarrierMapper.GetNameForNumber(UK_MOBILE1_TEST, Locale.French));
+            // GetSafeDisplayName returns "" because UK supports MNP.
+            Assert.Equal("", testCarrierMapper.GetSafeDisplayName(UK_MOBILE1_TEST, Locale.English));
+        }
+
+        [Fact]
+        public void TestGetNameForNonMobilePortableRegion_WithTestData()
+        {
+            // Angola has no MNP: both methods return the carrier.
+            Assert.Equal("Angolan carrier", testCarrierMapper.GetNameForNumber(AO_MOBILE1_TEST, Locale.English));
+            Assert.Equal("Angolan carrier", testCarrierMapper.GetSafeDisplayName(AO_MOBILE1_TEST, Locale.English));
+        }
+
+        [Fact]
+        public void TestGetNameForPagerNumber()
+        {
+            // PAGER is treated as mobile by GetNameForNumber — carrier data is returned.
+            Assert.Equal("British pager", testCarrierMapper.GetNameForNumber(UK_PAGER, Locale.English));
+        }
+
+        [Fact]
+        public void TestGetNameForFixedOrMobileNumber_WithCarrierData()
+        {
+            // FIXED_LINE_OR_MOBILE is treated as mobile, so carrier data is returned.
+            Assert.Equal("US carrier", testCarrierMapper.GetNameForNumber(US_FIXED_OR_MOBILE_TEST, Locale.English));
+        }
+
+        [Fact]
+        public void TestGetNameForFixedLineNumber_WithTestData()
+        {
+            // Fixed-line type: GetNameForNumber skips non-mobile types — returns "".
+            Assert.Equal("", testCarrierMapper.GetNameForNumber(AO_FIXED1_TEST, Locale.English));
+            Assert.Equal("", testCarrierMapper.GetNameForNumber(UK_FIXED1_TEST, Locale.English));
+            // GetNameForValidNumber bypasses the type check — returns the carrier from the data file.
+            Assert.Equal("Angolan fixed line carrier", testCarrierMapper.GetNameForValidNumber(AO_FIXED2_TEST, Locale.English));
+            Assert.Equal("British fixed line carrier", testCarrierMapper.GetNameForValidNumber(UK_FIXED1_TEST, Locale.English));
+            // No carrier data for this UK fixed-line prefix — returns "" even without type check.
+            Assert.Equal("", testCarrierMapper.GetNameForValidNumber(UK_FIXED2_TEST, Locale.English));
+        }
+
+        [Fact]
+        public void TestGetNameForNumberWithMissingPrefix_WithTestData()
+        {
+            // Prefixes not in the test data return "" regardless of number type.
+            Assert.Equal("", testCarrierMapper.GetNameForNumber(UK_MOBILE2_TEST, Locale.English));
+            Assert.Equal("", testCarrierMapper.GetNameForNumber(AO_MOBILE2_TEST, Locale.English));
+        }
+
+        [Fact]
+        public void TestGetNameForInvalidNumber_WithTestData()
+        {
+            Assert.Equal("", testCarrierMapper.GetNameForNumber(UK_INVALID_TEST, Locale.English));
+            Assert.Equal("", testCarrierMapper.GetNameForNumber(AO_INVALID_TEST, Locale.English));
+        }
+
+        [Fact]
+        public void TestGetNameForNumberWithSwedishLocale()
+        {
+            // Swedish test data (sv/44.txt) has an entry for prefix 4473.
+            Assert.Equal("Brittisk operatör",
+                testCarrierMapper.GetNameForNumber(UK_MOBILE1_TEST, new Locale("sv", "SE")));
         }
     }
 }
