@@ -203,6 +203,7 @@ FakesAssemblies/
 geocoding.zip
 testgeocoding.zip
 /resources/carrier.zip
+/resources/test/testcarrier.zip
 
 # Performance tests artifacts
 csharp/PhoneNumbers.PerformanceTest/BenchmarkDotNet.Artifacts/

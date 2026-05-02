@@ -35,9 +35,17 @@ namespace PhoneNumbers
         private readonly MappingFileProvider mappingFileProvider;
         private readonly ConcurrentDictionary<string, Lazy<AreaCodeMap>> availablePhonePrefixMaps =
             new ConcurrentDictionary<string, Lazy<AreaCodeMap>>();
+        // Caches GetFileName results to avoid StringBuilder allocations on every lookup.
+        private readonly ConcurrentDictionary<(int, string, string, string), string> _fileNameCache =
+            new ConcurrentDictionary<(int, string, string, string), string>();
+        // Pre-allocated delegates to avoid closure re-allocation on every GetOrAdd call.
+        private readonly Func<(int, string, string, string), string> _fileNameFactory;
+        private readonly Func<string, Lazy<AreaCodeMap>> _areaCodeMapFactory;
         private readonly string phonePrefixDataDirectory;
         private readonly string phoneDataZipFile;
         private readonly Assembly assembly;
+        // Normalized entry name -> original FullName, built during construction for O(1) zip lookup.
+        private readonly Dictionary<string, string> _zipEntryIndex;
 
         internal PrefixFileReader(string phonePrefixDataDirectory, Assembly asm = null)
         {
@@ -52,7 +60,8 @@ namespace PhoneNumbers
             {
                 using (zipStream)
                 {
-                    files = LoadFileNamesFromZip(zipStream);
+                    files = LoadFileNamesFromZip(zipStream, out var entryIndex);
+                    _zipEntryIndex = entryIndex;
                 }
                 phoneDataZipFile = zipFile;
             }
@@ -65,17 +74,23 @@ namespace PhoneNumbers
             mappingFileProvider.ReadFileConfigs(files);
             assembly = asm;
             this.phonePrefixDataDirectory = prefix;
+            _fileNameFactory = k => mappingFileProvider.GetFileName(k.Item1, k.Item2, k.Item3, k.Item4);
+            _areaCodeMapFactory = key => new Lazy<AreaCodeMap>(() => LoadAreaCodeMapFromFile(key));
         }
 
         // For zipped data: entries follow the pattern "lang/cc.txt".
-        private static SortedDictionary<int, HashSet<string>> LoadFileNamesFromZip(Stream zipStream)
+        private static SortedDictionary<int, HashSet<string>> LoadFileNamesFromZip(
+            Stream zipStream, out Dictionary<string, string> entryIndex)
         {
             var files = new SortedDictionary<int, HashSet<string>>();
+            entryIndex = new Dictionary<string, string>(StringComparer.Ordinal);
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
             foreach (var entry in archive.Entries)
             {
                 if (string.IsNullOrWhiteSpace(entry.Name))
                     continue;
+
+                entryIndex[entry.FullName.Replace("/", ".").Replace("\\", ".")] = entry.FullName;
 
                 var pathParts = entry.FullName.Split(s_pathSeparators, StringSplitOptions.RemoveEmptyEntries);
                 if (pathParts.Length < 2)
@@ -151,19 +166,17 @@ namespace PhoneNumbers
 
         private AreaCodeMap GetPhonePrefixDescriptions(int prefixMapKey, string language, string script, string region)
         {
-            var fileName = mappingFileProvider.GetFileName(prefixMapKey, language, script, region);
+            var fileName = _fileNameCache.GetOrAdd((prefixMapKey, language, script, region), _fileNameFactory);
             if (fileName.Length == 0)
                 return null;
 
-            return availablePhonePrefixMaps
-                .GetOrAdd(fileName, key => new Lazy<AreaCodeMap>(() => LoadAreaCodeMapFromFile(key)))
-                .Value;
+            return availablePhonePrefixMaps.GetOrAdd(fileName, _areaCodeMapFactory).Value;
         }
 
         private AreaCodeMap LoadAreaCodeMapFromFile(string fileName)
         {
             var fp = phoneDataZipFile != null
-                ? GetManifestZipFileStream(assembly, phoneDataZipFile, fileName)
+                ? GetManifestZipFileStream(assembly, phoneDataZipFile, fileName, _zipEntryIndex)
                 : GetManifestFileStream(assembly, phonePrefixDataDirectory, fileName);
 
             using (fp)
@@ -177,14 +190,19 @@ namespace PhoneNumbers
             return asm.GetManifestResourceStream(phonePrefixDataDirectory + fileName);
         }
 
-        private static Stream GetManifestZipFileStream(Assembly asm, string phoneDataZipFile, string fileName)
+        private static Stream GetManifestZipFileStream(Assembly asm, string phoneDataZipFile, string fileName,
+            Dictionary<string, string> entryIndex)
         {
             using var zipStream = asm.GetManifestResourceStream(phoneDataZipFile);
             if (zipStream == null)
                 throw new InvalidOperationException("Manifest zip file stream was null.");
 
             using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
-            var entry = archive.Entries.First(p => p.FullName.Replace("/", ".").Replace("\\", ".") == fileName);
+            var entry = entryIndex.TryGetValue(fileName, out var originalName)
+                ? archive.GetEntry(originalName)
+                : archive.Entries.First(p => p.FullName.Replace("/", ".").Replace("\\", ".") == fileName);
+            if (entry == null)
+                throw new InvalidOperationException($"Entry '{fileName}' not found in zip.");
             using var entryStream = entry.Open();
             var fileStream = new MemoryStream();
             entryStream.CopyTo(fileStream);

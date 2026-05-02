@@ -141,6 +141,7 @@ To run tests locally, you will need zip versions of the geocoding and carrier da
 | `resources/geocoding.zip` | `resources/geocoding/` |
 | `resources/carrier.zip` | `resources/carrier/` |
 | `resources/test/testgeocoding.zip` | `resources/test/geocoding/` |
+| `resources/test/testcarrier.zip` | `resources/test/carrier/` |
 
 On linux, you can run the following commands to generate the zips accordingly
 
@@ -148,6 +149,7 @@ On linux, you can run the following commands to generate the zips accordingly
 (cd resources/geocoding; zip -r ../../resources/geocoding.zip *)
 (cd resources/carrier; zip -r ../../resources/carrier.zip *)
 (cd resources/test/geocoding; zip -r ../../../resources/test/testgeocoding.zip *)
+(cd resources/test/carrier; zip -r ../../../resources/test/testcarrier.zip *)
 ```
 
 For windows, you can use the following powershell script
@@ -156,6 +158,7 @@ For windows, you can use the following powershell script
 Compress-Archive -Path "resources\geocoding\*" -DestinationPath "resources\geocoding.zip"
 Compress-Archive -Path "resources\carrier\*" -DestinationPath "resources\carrier.zip"
 Compress-Archive -Path "resources\test\geocoding\*" -DestinationPath "resources\test\testgeocoding.zip"
+Compress-Archive -Path "resources\test\carrier\*" -DestinationPath "resources\test\testcarrier.zip"
 ```
 
 ## Contributing

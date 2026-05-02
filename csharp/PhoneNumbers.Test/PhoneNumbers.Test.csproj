@@ -36,6 +36,7 @@
     <EmbeddedResource Include="..\..\resources\test\carrier\**" LinkBase="carrier" />
     <EmbeddedResource Include="..\..\resources\test\geocoding\**" LinkBase="geocoding" />
     <EmbeddedResource Include="..\..\resources\test\testgeocoding.zip" />
+    <EmbeddedResource Include="..\..\resources\test\testcarrier.zip" />
   </ItemGroup>
 
   <ItemGroup>
