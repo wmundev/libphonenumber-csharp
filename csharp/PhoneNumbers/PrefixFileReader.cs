@@ -149,11 +149,16 @@ namespace PhoneNumbers
         internal string GetDescriptionForNumber(PhoneNumber number, string lang, string script, string region)
         {
             var countryCallingCode = number.CountryCode;
-            var phonePrefixDescriptions = GetPhonePrefixDescriptions(countryCallingCode, lang, script, region);
+            // As the NANPA data is split into multiple files covering 3-digit areas, use a phone number
+            // prefix of 4 digits for NANPA instead, e.g. 1650.
+            var phonePrefix = countryCallingCode != 1
+                ? countryCallingCode
+                : (int)(1000 + number.NationalNumber / 10000000);
+            var phonePrefixDescriptions = GetPhonePrefixDescriptions(phonePrefix, lang, script, region);
             var description = phonePrefixDescriptions?.Lookup(number);
             if (string.IsNullOrEmpty(description) && MayFallBackToEnglish(lang))
             {
-                var defaultMap = GetPhonePrefixDescriptions(countryCallingCode, "en", "", "");
+                var defaultMap = GetPhonePrefixDescriptions(phonePrefix, "en", "", "");
                 if (defaultMap == null)
                     return "";
                 description = defaultMap.Lookup(number);

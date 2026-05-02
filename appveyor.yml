@@ -27,6 +27,7 @@ before_build:
   - ps: Compress-Archive -Path "resources\geocoding\*" -DestinationPath "resources\geocoding.zip"
   - ps: Compress-Archive -Path "resources\carrier\*" -DestinationPath "resources\carrier.zip"
   - ps: Compress-Archive -Path "resources\test\geocoding\*" -DestinationPath "resources\test\testgeocoding.zip"
+  - ps: Compress-Archive -Path "resources\test\carrier\*" -DestinationPath "resources\test\testcarrier.zip"
 build_script:
   - dotnet pack -c Release csharp\PhoneNumbers
   - dotnet pack -c Release csharp\PhoneNumbers.Extensions
